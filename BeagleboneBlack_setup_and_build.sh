@@ -17,8 +17,8 @@ if [ ! -d "${BBB_SETUP_PATH}/" ]; then
 
 	sudo apt-get update
 	sudo apt-get upgrade
-	sudo apt-get install bison flex lzop u-boot-tools
-	sudo apt-get install figlet toilet boxes lolcat
+	sudo apt-get install build-essential libncurses-dev bison flex libssl-dev libelf-dev lzop u-boot-tools -y
+	sudo apt-get install figlet toilet boxes lolcat -y
 	
 	#### Make directories ####
 	mkdir ${BBB_SETUP_PATH}
