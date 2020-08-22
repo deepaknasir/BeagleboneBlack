@@ -6,7 +6,8 @@ BBB_SETUP_PATH=$(pwd)/BBB_Setup
 TOOLCHAIN_PATH=${BBB_SETUP_PATH}/Toolchain
 UBOOT_PATH=${BBB_SETUP_PATH}/Uboot
 KERNEL_PATH=${BBB_SETUP_PATH}/Kernel
-
+VAR_UB_BUILD_MODE=0
+VAR_KR_BUILD_MODE=0
 
 TOOLCHAIN_DIR_NAME=gcc-linaro-7.5.0-2019.12-x86_64_arm-linux-gnueabihf
 UBOOT_DIR_NAME=u-boot
@@ -73,42 +74,64 @@ function download_kernel()
 #### Build u-boot bootloader
 function build_uboot()
 {
+	build_mode_chk
 	pushd ${UBOOT_PATH}/${UBOOT_DIR_NAME} > /dev/null
 	echo "$0, $1"	
 	case $1 in 
 	1c|1b|2c|2b) 
+		make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- clean
 		make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- distclean
 		make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- am335x_boneblack_defconfig
 		make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- 
+		VAR_UB_BUILD_MODE=1 
 		;;
 	*)
-		make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- 
+		if [ "$VAR_UB_BUILD_MODE" == "1" ]; then 
+			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- 
+		else
+			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- clean
+			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- distclean
+			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- am335x_boneblack_defconfig
+			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- 
+			VAR_UB_BUILD_MODE=1 
+		fi			
 		;;
 	esac
 
 	popd > /dev/null
+	gen_mode_chk	
 }
 
 #### Build Linux kernel #####
 function build_kernel()
 {
+	build_mode_chk
+	pwd
 	pushd ${KERNEL_PATH}/${KERNEL_DIR_NAME} > /dev/null
 	
 	case $1 in 
 	1c|1b|3c|3b) 
-		echo "${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf-"
-		pwd
 		make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- distclean
 		make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- bb.org_defconfig
 		make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- uImage dtbs LOADADDR=0x80008000
 		make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- modules
 		;;
 	*)
-		make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- uImage dtbs LOADADDR=0x80008000
-		make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- modules
+		if [ "$VAR_KR_BUILD_MODE" == "1" ]; then 
+			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- uImage dtbs LOADADDR=0x80008000
+			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- modules
+			VAR_KR_BUILD_MODE=1 
+		else
+			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- distclean
+			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- bb.org_defconfig
+			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- uImage dtbs LOADADDR=0x80008000
+			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- modules
+			VAR_KR_BUILD_MODE=1 
+		fi			
 		;;
 	esac
 	popd > /dev/null
+	gen_mode_chk
 }
 
 
@@ -183,4 +206,24 @@ function main_menu()
 			echo -e "\e[1;31m ERROR: Invalid Option !!! \e[0m"
 	esac
 }
+
+function gen_mode_chk()
+{
+	echo "VAR_UB_BUILD_MODE : ${VAR_UB_BUILD_MODE}" > BUILD_CONFIG.txt
+    	echo "VAR_KR_BUILD_MODE : ${VAR_KR_BUILD_MODE}" >> BUILD_CONFIG.txt
+    	echo "" >> BUILD_CONFIG.txt
+}
+function build_mode_chk()
+{
+	pwd
+ 	if [ -f BUILD_CONFIG.txt ] ; then
+        	VAR_UB_BUILD_MODE=$(cat BUILD_CONFIG.txt | sed -n "/^VAR_UB_BUILD_MODE : [a-z0-9_]*/s/VAR_UB_BUILD_MODE :[[:space:]]*//p")
+        	VAR_KR_BUILD_MODE=$(cat BUILD_CONFIG.txt | sed -n "/^VAR_KR_BUILD_MODE : [a-z0-9_]*/s/VAR_KR_BUILD_MODE :[[:space:]]*//p")
+	else
+		VAR_UB_BUILD_MODE=0
+		VAR_KR_BUILD_MODE=0
+		gen_mode_chk
+	fi
+}
+
 main_menu
