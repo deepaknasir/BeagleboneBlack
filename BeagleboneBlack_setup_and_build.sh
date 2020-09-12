@@ -27,7 +27,7 @@ if [ ! -d "${BBB_SETUP_PATH}/" ]; then
 	sudo apt-get install build-essential libncurses-dev bison flex libssl-dev libelf-dev lzop u-boot-tools -y
 	sudo apt-get install figlet toilet boxes lolcat -y
 	sudo apt-get install xinetd tftp tftpd -y
-	
+
 	#### Make directories ####
 	mkdir ${BBB_SETUP_PATH}
 	mkdir ${TOOLCHAIN_PATH}
@@ -53,13 +53,13 @@ function setup_tftp()
 	echo "disable=no" >> tftp	
 	echo "}" >> tftp	
 	echo "" >> tftp	
-	
+
 	sudo mv tftp /etc/xinetd.d/tftp
 	sudo mkdir /var/lib/tftpboot
 	sudo chmod -R 777 /var/lib/tftpboot
 	sudo chown -R nobody /var/lib/tftpboot
 	sudo /etc/init.d/xinetd restart
-	
+
 	echo "-------------- TFTP SETUP ---------------- "
 	echo ""
 	echo " TFTP setup completd !"
@@ -105,7 +105,7 @@ function download_uboot()
 
 
 #### Download Kernel ####
- 
+
 function download_kernel()
 {
 	pushd ${KERNEL_PATH} > /dev/null
@@ -122,24 +122,24 @@ function build_uboot()
 	pushd ${UBOOT_PATH}/${UBOOT_DIR_NAME} > /dev/null
 	echo "$0, $1"	
 	case $1 in 
-	1c|1b|2c|2b) 
-		make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- clean
-		make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- distclean
-		make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- am335x_boneblack_defconfig
-		make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- 
-		VAR_UB_BUILD_MODE=1 
-		;;
-	*)
-		if [ "$VAR_UB_BUILD_MODE" == "1" ]; then 
-			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- 
-		else
+		1c|1b|2c|2b) 
 			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- clean
 			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- distclean
 			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- am335x_boneblack_defconfig
 			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- 
 			VAR_UB_BUILD_MODE=1 
-		fi			
-		;;
+			;;
+		*)
+			if [ "$VAR_UB_BUILD_MODE" == "1" ]; then 
+				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- 
+			else
+				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- clean
+				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- distclean
+				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- am335x_boneblack_defconfig
+				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- 
+				VAR_UB_BUILD_MODE=1 
+			fi			
+			;;
 	esac
 
 	popd > /dev/null
@@ -152,29 +152,29 @@ function build_kernel()
 	build_mode_chk
 	pwd
 	pushd ${KERNEL_PATH}/${KERNEL_DIR_NAME} > /dev/null
-	
+
 	case $1 in 
-	1c|1b|3c|3b) 
-		make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- clean
-		make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- distclean
-		make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- bb.org_defconfig
-		make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- ${VAR_BOOT_FILE} dtbs LOADADDR=0x80008000
-		make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- modules
-		;;
-	*)
-		if [ "$VAR_KR_BUILD_MODE" == "1" ]; then 
-			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- ${VAR_BOOT_FILE} dtbs LOADADDR=0x80008000
-			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- modules
-			VAR_KR_BUILD_MODE=1 
-		else
+		1c|1b|3c|3b) 
 			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- clean
 			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- distclean
 			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- bb.org_defconfig
 			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- ${VAR_BOOT_FILE} dtbs LOADADDR=0x80008000
 			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- modules
-			VAR_KR_BUILD_MODE=1 
-		fi			
-		;;
+			;;
+		*)
+			if [ "$VAR_KR_BUILD_MODE" == "1" ]; then 
+				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- ${VAR_BOOT_FILE} dtbs LOADADDR=0x80008000
+				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- modules
+				VAR_KR_BUILD_MODE=1 
+			else
+				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- clean
+				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- distclean
+				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- bb.org_defconfig
+				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- ${VAR_BOOT_FILE} dtbs LOADADDR=0x80008000
+				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- modules
+				VAR_KR_BUILD_MODE=1 
+			fi			
+			;;
 	esac
 	popd > /dev/null
 	gen_mode_chk
@@ -183,72 +183,99 @@ function build_kernel()
 function gen_mode_chk()
 {
 	pwd
-        echo "VAR_UB_BUILD_MODE : ${VAR_UB_BUILD_MODE}" > BUILD_CONFIG.txt
-        echo "VAR_KR_BUILD_MODE : ${VAR_KR_BUILD_MODE}" >> BUILD_CONFIG.txt
-        echo "VAR_BOOT_MODE : ${VAR_BOOT_MODE}" >> BUILD_CONFIG.txt
-        echo "" >> BUILD_CONFIG.txt
-        cat BUILD_CONFIG.txt
+	echo "VAR_UB_BUILD_MODE : ${VAR_UB_BUILD_MODE}" > BUILD_CONFIG.txt
+	echo "VAR_KR_BUILD_MODE : ${VAR_KR_BUILD_MODE}" >> BUILD_CONFIG.txt
+	echo "VAR_BOOT_MODE : ${VAR_BOOT_MODE}" >> BUILD_CONFIG.txt
+	echo "" >> BUILD_CONFIG.txt
+	cat BUILD_CONFIG.txt
 }
 function build_mode_chk()
 {
-        pwd
-        if [ -f BUILD_CONFIG.txt ] ; then
-                VAR_UB_BUILD_MODE=$(cat BUILD_CONFIG.txt | sed -n "/^VAR_UB_BUILD_MODE : [a-z0-9_]*/s/VAR_UB_BUILD_MODE :[[:space:]]*//p")
-                VAR_KR_BUILD_MODE=$(cat BUILD_CONFIG.txt | sed -n "/^VAR_KR_BUILD_MODE : [a-z0-9_]*/s/VAR_KR_BUILD_MODE :[[:space:]]*//p")
-                VAR_BOOT_MODE=$(cat BUILD_CONFIG.txt | sed -n "/^VAR_BOOT_MODE : [a-z0-9_]*/s/VAR_BOOT_MODE :[[:space:]]*//p")
+	pwd
+	if [ -f BUILD_CONFIG.txt ] ; then
+		VAR_UB_BUILD_MODE=$(cat BUILD_CONFIG.txt | sed -n "/^VAR_UB_BUILD_MODE : [a-z0-9_]*/s/VAR_UB_BUILD_MODE :[[:space:]]*//p")
+		VAR_KR_BUILD_MODE=$(cat BUILD_CONFIG.txt | sed -n "/^VAR_KR_BUILD_MODE : [a-z0-9_]*/s/VAR_KR_BUILD_MODE :[[:space:]]*//p")
+		VAR_BOOT_MODE=$(cat BUILD_CONFIG.txt | sed -n "/^VAR_BOOT_MODE : [a-z0-9_]*/s/VAR_BOOT_MODE :[[:space:]]*//p")
 	else
-                VAR_UB_BUILD_MODE=0
-                VAR_KR_BUILD_MODE=0
-                VAR_BOOT_MODE="TFTP"
-                gen_mode_chk
-        fi
+		VAR_UB_BUILD_MODE=0
+		VAR_KR_BUILD_MODE=0
+		VAR_BOOT_MODE="TFTP"
+		gen_mode_chk
+	fi
 }
 function func_boot_mode()
 {
-    local result="SDCARD"
+	local result="SDCARD"
 
-    if [ "$VAR_BOOT_MODE" = "SDCARD" ]; then
-        result="TFTP"
-    fi
-    VAR_BOOT_MODE=$result
-    gen_mode_chk
-    VAR_MAIN_MENU_EXIT=false
+	case $VAR_BOOT_MODE in
+		"SDCARD") VAR_BOOT_MODE=TFTP;;
+		"TFTP") VAR_BOOT_MODE=NFS;;
+		"NFS") VAR_BOOT_MODE=SDCARD;;
+		*);;
+	esac
+	gen_mode_chk
+	VAR_MAIN_MENU_EXIT=false
 }
 
 function create_uenv_file()
 {
-    echo "console=ttyUSB0,115200n8" > uEnv.txt
-    echo "bootfile=${VAR_BOOT_FILE}" >> uEnv.txt
-    echo "fdtfile=am335x-boneblack.dtb" >> uEnv.txt
-    echo "loadaddr=0x80007FC0" >> uEnv.txt
-    echo "fdtaddr=0x80F80000" >> uEnv.txt
-    echo "netargs=setenv bootargs console=\${console} root=/dev/mmcblk0p2 rw rootfstype=ext4 rootwait debug earlyprintk mem=512M" >> uEnv.txt
-    echo "netboot=echo [ DKN ] Booting from microSD ...; setenv autoload no ; load mmc 0:1 \${loadaddr} \${bootfile} ; load mmc 0:1 \${fdtaddr} \${fdtfile} ; run netargs ; bootm \${loadaddr} - \${fdtaddr}" >> uEnv.txt
-    echo "uenvcmd=run netboot" >> uEnv.txt
-    
-    echo -e "uEnv.txt Generated at :""\033[1;31;40m`pwd`\033[0m"
-}
+	echo "CONSOLE=ttyUSB0,115200n8" > uEnv.txt
 
+	echo "IP_ADDR=192.168.7.2" >> uEnv.txt
+	echo "SERVER_IP=192.168.7.1" >> uEnv.txt
+
+	echo "BOOTFILE=${VAR_BOOT_FILE}" >> uEnv.txt
+	echo "FDT_FILE=am335x-boneblack.dtb" >> uEnv.txt
+
+	echo "LOAD_ADDR=0x82000000" >> uEnv.txt
+	echo "FDT_ADDR=0x88000000" >> uEnv.txt
+	echo "FS_ADDR=0x88080000" >> uEnv.txt
+
+	echo "SD_BOOT_MODE=/dev/mmcblk0p2" >> uEnv.txt
+	echo "TFTP_BOOT_MODE=/dev/ram0" >> uEnv.txt
+	echo "NFS_BOOT_MODE=/dev/nfs" >> uEnv.txt
+	echo "absolutepath=/var/lib/tftpboot/" >> uEnv.txt
+	echo "rootpath=/srv/nfs/bbb,nolock,wsize=1024,rsize=1024 rootwait rootdelay=5" >> uEnv.txt
+
+
+	if [ "$VAR_BOOT_MODE" == "SDCARD" ]; then 
+		echo "netargs=setenv bootargs console=\${CONSOLE} root=\${SD_BOOT_MODE} rw rootfstype=ext4 rootwait debug earlyprintk mem=512M" >> uEnv.txt
+		echo "netboot=echo [ DKN ] Booting from $VAR_BOOT_MODE ...; setenv autoload no ; load mmc 0:1 \${LOAD_ADDR} \${BOOTFILE} ; load mmc 0:1 \${FDT_ADDR} \${FDT_FILE} ; run netargs ; bootm \${LOAD_ADDR} - \${FDT_ADDR}" >> uEnv.txt
+
+	elif [ "$VAR_BOOT_MODE" == "TFTP" ]; then 
+		echo "netargs=setenv bootargs console=\${CONSOLE} root=\${TFTP_BOOT_MODE} rw initrd=\${FS_ADDR} rootwait debug earlyprintk mem=512M" >> uEnv.txt
+		echo "netboot=echo [ DKN ] Booting from $VAR_BOOT_MODE ...; setenv autoload no; tftpboot \${LOAD_ADDR} \${absolutepath}\${BOOTFILE}; tftpboot \${FDT_ADDR} \${absolutepath}\${FDT_FILE} ; bootm \${LOAD_ADDR} - \${FDT_ADDR}" >> uEnv.txt
+
+
+	elif [ "$VAR_BOOT_MODE" == "NFS" ]; then 
+		echo "netargs=setenv bootargs console=\${CONSOLE} root=\${NFS_BOOT_MODE} rw nfsroot=\${SERVER_IP}:\${rootpath}" >> uEnv.txt
+		echo "netboot=echo [ DKN ] Booting from $VAR_BOOT_MODE ...; setenv autoload no; tftpboot \${LOAD_ADDR} \${absolutepath}\${BOOTFILE}; tftpboot \${FDT_ADDR} \${absolutepath}\${FDT_FILE}; bootm \${LOAD_ADDR} - \${FDT_ADDR}" >> uEnv.txt
+	fi
+	echo "uenvcmd=run netboot" >> uEnv.txt
+
+	echo -e "uEnv.txt Generated at :""\033[1;31;40m`pwd`\033[0m"
+
+}  
 
 function sdcard_setup()
 {
 	echo -ne " Enter SD-Card Block partition e.g: sda, sdb, mmcblk0 etc.:-  "
 	read block_dev
-	
-        DEV=/dev/$block_dev
+
+	DEV=/dev/$block_dev
 	if [ -b "$DEV" ]; then
 		ls -lah $DEV
 	else
-        	echo "Invalid Block device."
-        	exit 1
+		echo "Invalid Block device."
+		exit 1
 	fi
 	mount | grep '^/' | grep -q $block_dev
-	
+
 	if [ $? -ne 1 ]; then
-    		echo "Looks like partitions on device /dev/${block_dev} are mounted"
-    		echo "Not going to work on a device that is currently in use"
-    		mount | grep '^/' | grep ${block_dev}
-    		exit 1
+		echo "Looks like partitions on device /dev/${block_dev} are mounted"
+		echo "Not going to work on a device that is currently in use"
+		mount | grep '^/' | grep ${block_dev}
+		exit 1
 	fi
 
 
