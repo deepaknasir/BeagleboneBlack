@@ -6,11 +6,15 @@ BBB_SETUP_PATH=$(pwd)/BBB_Setup
 TOOLCHAIN_PATH=${BBB_SETUP_PATH}/Toolchain
 UBOOT_PATH=${BBB_SETUP_PATH}/Uboot
 KERNEL_PATH=${BBB_SETUP_PATH}/Kernel
+RFS_PATH=${BBB_SETUP_PATH}/RFS
 
 #### Variable used in script ####
 
+SERVER_IP_ADDR=192.168.7.1
+
 VAR_UB_BUILD_MODE=0
 VAR_KR_BUILD_MODE=0
+VAR_RFS_BUILD_MODE=0
 VAR_BOOT_MODE="TFTP"
 VAR_MAIN_MENU_EXIT=false
 VAR_BOOT_FILE=uImage
@@ -18,6 +22,12 @@ VAR_BOOT_FILE=uImage
 TOOLCHAIN_DIR_NAME=gcc-linaro-7.5.0-2019.12-x86_64_arm-linux-gnueabihf
 UBOOT_DIR_NAME=u-boot
 KERNEL_DIR_NAME=linux
+RFS_DIR_NAME=busybox
+RFS_OUT_DIR_NAME=RFS_OUT
+
+CPU_CORE=$(cat /proc/cpuinfo | grep cores | wc -l)
+let JOB_CORE=$CPU_CORE*2
+JOBS=-j${JOB_CORE}
 
 if [ ! -d "${BBB_SETUP_PATH}/" ]; then
 	#### Update the system.####
@@ -27,12 +37,14 @@ if [ ! -d "${BBB_SETUP_PATH}/" ]; then
 	sudo apt-get install build-essential libncurses-dev bison flex libssl-dev libelf-dev lzop u-boot-tools -y
 	sudo apt-get install figlet toilet boxes lolcat -y
 	sudo apt-get install xinetd tftp tftpd -y
-
+	sudo apt-get install nfs-kernel-server -y 
 	#### Make directories ####
 	mkdir ${BBB_SETUP_PATH}
 	mkdir ${TOOLCHAIN_PATH}
 	mkdir ${UBOOT_PATH}
 	mkdir ${KERNEL_PATH}
+	mkdir ${RFS_PATH}
+	mkdir ${RFS_PATH}/${RFS_OUT_DIR_NAME}
 	cd ${BBB_SETUP_PATH}
 else
 	cd ${BBB_SETUP_PATH}
@@ -59,6 +71,21 @@ function setup_tftp()
 	sudo chmod -R 777 /var/lib/tftpboot
 	sudo chown -R nobody /var/lib/tftpboot
 	sudo /etc/init.d/xinetd restart
+	
+	# setup NFS
+	sudo mkdir -p /srv/nfs/bbb
+	sudo cp /etc/exports .
+	sudo chmod 666 exports
+	test_str="/srv/nfs/bbb 192.168.7.2(rw,sync,no_root_squash,no_subtree_check)"
+	if [ "`grep -Fx "${test_str}" exports`" != "${test_str}" ]; then 
+		sudo echo "/srv/nfs/bbb 192.168.7.2(rw,sync,no_root_squash,no_subtree_check)" >> exports	
+	fi
+	sudo chmod 644 exports
+	sudo mv exports /etc/exports
+	sudo exportfs -a
+	sudo exportfs -rv
+	sudo service nfs-kernel-server restart
+	sudo service nfs-kernel-server status
 
 	echo "-------------- TFTP SETUP ---------------- "
 	echo ""
@@ -115,6 +142,24 @@ function download_kernel()
 	popd > /dev/null
 }
 
+function download_rfs()
+{
+	if [ -d ${RFS_PATH} ]; then 
+		pushd ${RFS_PATH} > /dev/null
+	else
+		mkdir ${RFS_PATH}
+		pushd ${RFS_PATH} > /dev/null
+	fi
+
+	wget https://busybox.net/downloads/busybox-1.32.0.tar.bz2
+	tar -xvf busybox-1.32.0.tar.bz2
+	mv busybox-1.32.0 busybox
+	
+	popd > /dev/null
+	
+}
+
+
 #### Build u-boot bootloader
 function build_uboot()
 {
@@ -123,21 +168,64 @@ function build_uboot()
 	echo "$0, $1"	
 	case $1 in 
 		1c|1b|2c|2b) 
-			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- clean
-			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- distclean
-			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- am335x_boneblack_defconfig
-			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- 
+			make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- clean
+			make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- distclean
+			make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- am335x_boneblack_defconfig
+			make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- 
 			VAR_UB_BUILD_MODE=1 
 			;;
 		*)
 			if [ "$VAR_UB_BUILD_MODE" == "1" ]; then 
-				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- 
+				make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- 
 			else
-				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- clean
-				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- distclean
-				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- am335x_boneblack_defconfig
-				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- 
+				make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- clean
+				make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- distclean
+				make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- am335x_boneblack_defconfig
+				make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- 
 				VAR_UB_BUILD_MODE=1 
+			fi			
+			;;
+	esac
+
+	popd > /dev/null
+	gen_mode_chk	
+}
+
+#### Build Busy Box rfs ####
+function build_rfs()
+{
+	build_mode_chk
+	pushd ${RFS_PATH}/${RFS_DIR_NAME} > /dev/null
+	case $1 in 
+		1c|1b|4c|4b) 
+			make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- clean
+			make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- distclean
+			make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- defconfig
+			if [ ${VAR_BOOT_MODE} == "NFS" ]; then 
+				make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- CONFIG_PREFIX=/srv/nfs/bbb install
+			else
+				make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- CONFIG_PREFIX=${RFS_PATH}/${RFS_OUT_DIR_NAME} install
+			fi
+			VAR_RFS_BUILD_MODE=1 
+			;;
+		*)
+			if [ "$VAR_RFS_BUILD_MODE" == "1" ]; then 
+				if [ ${VAR_BOOT_MODE} == "NFS" ]; then 
+					make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- CONFIG_PREFIX=/srv/nfs/bbb install
+				else
+					make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- CONFIG_PREFIX=${RFS_PATH}/${RFS_OUT_DIR_NAME} install
+				fi
+				VAR_RFS_BUILD_MODE=1 
+			else
+				make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- clean
+				make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- distclean
+				make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- defconfig
+				if [ ${VAR_BOOT_MODE} == "NFS" ]; then 
+					make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- CONFIG_PREFIX=/srv/nfs/bbb install
+				else
+					make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- CONFIG_PREFIX=${RFS_PATH}/${RFS_OUT_DIR_NAME} install
+				fi
+				VAR_RFS_BUILD_MODE=1 
 			fi			
 			;;
 	esac
@@ -155,27 +243,62 @@ function build_kernel()
 
 	case $1 in 
 		1c|1b|3c|3b) 
-			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- clean
-			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- distclean
-			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- bb.org_defconfig
-			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- ${VAR_BOOT_FILE} dtbs LOADADDR=0x80008000
-			make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- modules
+			make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- clean
+			make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- distclean
+			make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- bb.org_defconfig
+			make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- ${VAR_BOOT_FILE} dtbs LOADADDR=0x80008000
+			make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- modules
+			if [ "$VAR_RFS_BUILD_MODE" == "1" ]; then 
+				if [ ${VAR_BOOT_MODE} == "NFS" ]; then 
+					make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- INSTALL_MOD_PATH=/srv/nfs/bbb  modules_install
+				else
+					make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- INSTALL_MOD_PATH=${RFS_PATH}/${RFS_OUT_DIR_NAME} modules_install
+				fi
+			else
+				echo "Modules Not installed to Root file system..! Please build RFS first."
+			fi
+			VAR_KR_BUILD_MODE=1 
 			;;
 		*)
 			if [ "$VAR_KR_BUILD_MODE" == "1" ]; then 
-				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- ${VAR_BOOT_FILE} dtbs LOADADDR=0x80008000
-				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- modules
+				make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- ${VAR_BOOT_FILE} dtbs LOADADDR=0x80008000
+				make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- modules
+				if [ "$VAR_RFS_BUILD_MODE" == "1" ]; then 
+					if [ ${VAR_BOOT_MODE} == "NFS" ]; then 
+						make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- INSTALL_MOD_PATH=/srv/nfs/bbb  modules_install
+					else
+						make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- INSTALL_MOD_PATH=${RFS_PATH}/${RFS_OUT_DIR_NAME} modules_install
+					fi
+				else
+					echo "Modules Not installed to Root file system..! Please build RFS first."
+				fi
 				VAR_KR_BUILD_MODE=1 
 			else
-				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- clean
-				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- distclean
-				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- bb.org_defconfig
-				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- ${VAR_BOOT_FILE} dtbs LOADADDR=0x80008000
-				make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- modules
+				make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- clean
+				make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- distclean
+				make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- bb.org_defconfig
+				make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- ${VAR_BOOT_FILE} dtbs LOADADDR=0x80008000
+				make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- modules
+				
+				if [ "$VAR_RFS_BUILD_MODE" == "1" ]; then 
+					if [ ${VAR_BOOT_MODE} == "NFS" ]; then 
+						make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- INSTALL_MOD_PATH=/srv/nfs/bbb  modules_install
+					else
+						make ${JOBS} ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PATH}/${TOOLCHAIN_DIR_NAME}/bin/arm-linux-gnueabihf- INSTALL_MOD_PATH=${RFS_PATH}/${RFS_OUT_DIR_NAME} modules_install
+					fi
+				else
+					echo "Modules Not installed to Root file system..! Please build RFS first."
+				fi	
 				VAR_KR_BUILD_MODE=1 
 			fi			
 			;;
 	esac
+	
+	if [ "$VAR_BOOT_MODE" == "TFTP" || "$VAR_BOOT_MODE" == "NFS" ]; then 
+		ln -s arch/arm/boot/${VAR_BOOT_FILE} /var/lib/tftpboot/ 
+		ln -s arch/arm/boot/dts/am335x-boneblack.dtb /var/lib/tftpboot/
+	fi
+
 	popd > /dev/null
 	gen_mode_chk
 }
@@ -185,6 +308,7 @@ function gen_mode_chk()
 	pwd
 	echo "VAR_UB_BUILD_MODE : ${VAR_UB_BUILD_MODE}" > BUILD_CONFIG.txt
 	echo "VAR_KR_BUILD_MODE : ${VAR_KR_BUILD_MODE}" >> BUILD_CONFIG.txt
+	echo "VAR_RFS_BUILD_MODE : ${VAR_RFS_BUILD_MODE}" >> BUILD_CONFIG.txt
 	echo "VAR_BOOT_MODE : ${VAR_BOOT_MODE}" >> BUILD_CONFIG.txt
 	echo "" >> BUILD_CONFIG.txt
 	cat BUILD_CONFIG.txt
@@ -195,10 +319,12 @@ function build_mode_chk()
 	if [ -f BUILD_CONFIG.txt ] ; then
 		VAR_UB_BUILD_MODE=$(cat BUILD_CONFIG.txt | sed -n "/^VAR_UB_BUILD_MODE : [a-z0-9_]*/s/VAR_UB_BUILD_MODE :[[:space:]]*//p")
 		VAR_KR_BUILD_MODE=$(cat BUILD_CONFIG.txt | sed -n "/^VAR_KR_BUILD_MODE : [a-z0-9_]*/s/VAR_KR_BUILD_MODE :[[:space:]]*//p")
+		VAR_RFS_BUILD_MODE=$(cat BUILD_CONFIG.txt | sed -n "/^VAR_RFS_BUILD_MODE : [a-z0-9_]*/s/VAR_RFS_BUILD_MODE :[[:space:]]*//p")
 		VAR_BOOT_MODE=$(cat BUILD_CONFIG.txt | sed -n "/^VAR_BOOT_MODE : [a-z0-9_]*/s/VAR_BOOT_MODE :[[:space:]]*//p")
 	else
 		VAR_UB_BUILD_MODE=0
 		VAR_KR_BUILD_MODE=0
+		VAR_RFS_BUILD_MODE=0
 		VAR_BOOT_MODE="TFTP"
 		gen_mode_chk
 	fi
@@ -219,10 +345,19 @@ function func_boot_mode()
 
 function create_uenv_file()
 {
+	ifconfig 
+	echo ""
+	IP_ADDR=
+	while [ "${IP_ADDR}" == "" ]
+	do
+		echo -ne "Enter Ethernet IP-Addr : "
+		read IP_ADDR
+	done
+	SERVER_IP_ADDR=${IP_ADDR}
 	echo "CONSOLE=ttyUSB0,115200n8" > uEnv.txt
 
 	echo "IP_ADDR=192.168.7.2" >> uEnv.txt
-	echo "SERVER_IP=192.168.7.1" >> uEnv.txt
+	echo "SERVER_IP=${SERVER_IP_ADDR}" >> uEnv.txt
 
 	echo "BOOTFILE=${VAR_BOOT_FILE}" >> uEnv.txt
 	echo "FDT_FILE=am335x-boneblack.dtb" >> uEnv.txt
@@ -290,7 +425,8 @@ function main_menu()
 	echo "	1)  All (Build) 		1b) All	   ( Download & Build-SetupAll) 	1c) All    (Clean Build)"
 	echo "	2)  U-boot (Build)		2b) U-boot ( Download & Build )			2c) U-boot (Clean Build)"
 	echo "	3)  Kernel (Build)		3b) Kernle ( Download & Build )			3c) Kernel (clean Build)"
-	echo "	4)  All (Only Download All ) "
+	echo "	4)  RFS_BusyBox (Build)		4b) RFS_BusyBox ( Download & Build )		4c) RFS_BusyBox (clean Build)"
+	echo "	5)  All (Only Download All ) "
 	echo "-------------------------------------------------------------------------------------------------------------"
 	echo -e "	m)   BOOT-MODE   : ""\033[1;32;40m${VAR_BOOT_MODE}\033[0m"
 	echo -e "	u)   Gen-uEnv    : ""\033[1;31;40mGenerate uEnv.txt \033[0m"
@@ -361,10 +497,24 @@ function main_menu()
 			build_kernel $SELECTED_OPTION
 			;;
 
-		4)	
+		4)
+			build_rfs $SELECTED_OPTION
+			;;
+
+		4b)
+			download_rfs
+			build_rfs $SELECTED_OPTION
+			;;
+
+		4c)
+			build_rfs $SELECTED_OPTION
+			;;
+
+		5)	
 			download_toolchain
 			download_uboot
 			download_kernel
+			download_rfs
 			;;
 		*)
 			echo -e "\e[1;31m ERROR: Invalid Option !!! \e[0m"
